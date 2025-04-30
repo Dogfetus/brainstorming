@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from itr3 import fetch_scores_with_difficulty, rank_itr3, build_chart_score_lookup
 # from avg import rank_by_avg
-from score import rank_players_by_categories 
+from score import get_rank
 from graph import get_rank_graphs_for_list, get_rank_graphs_for_list_better, get_rank_graphs_for_list_superfast
 
 DATE = "2024-10-17"
@@ -209,23 +209,23 @@ def new_merge(list1, list2):
 
 
 #
-# # # #graph and such
-# player_ranks = []
-# for player in players:
-#     rank = get_rank(player, dis=["wild"], date=DATE)
-#     # rank = get_rank_graph_bulk(player, x=5, date=DATE)
-#     # rank = rank_by_avg(player, date=DATE)
-#     print(f"\033[1;36m{player} : \t\033[1;33m{rank}\033[0m")
-#     player_ranks.append((player, rank))
-#
-# groupd_player_ranks = sorted(player_ranks, key=lambda x: x[1], reverse=True) 
-# graph_list = [group[0] for group in groupd_player_ranks]
-#
-# mae = np.mean(np.abs([i - graph_list.index(p) for i, p in enumerate(players)]))
-# print(f"Mean Absolute Error: {mae:.2f}")
-#
-# for rank, (player, rating) in enumerate(groupd_player_ranks, start=1):
-#     print(f"\033[1;36m{rank:2}.\033[0m \033[1;33m{player:15}\033[0m: {rating:.2f}")
+# # #graph and such
+player_ranks = []
+for player in players:
+    rank = get_rank(player, dis=["wild"], date=DATE)
+    # rank = get_rank_graph_bulk(player, x=5, date=DATE)
+    # rank = rank_by_avg(player, date=DATE)
+    print(f"\033[1;36m{player} : \t\033[1;33m{rank}\033[0m")
+    player_ranks.append((player, rank))
+
+groupd_player_ranks = sorted(player_ranks, key=lambda x: x[1], reverse=True) 
+graph_list = [group[0] for group in groupd_player_ranks]
+
+mae = np.mean(np.abs([i - graph_list.index(p) for i, p in enumerate(players)]))
+print(f"Mean Absolute Error: {mae:.2f}")
+
+for rank, (player, rating) in enumerate(groupd_player_ranks, start=1):
+    print(f"\033[1;36m{rank:2}.\033[0m \033[1;33m{player:15}\033[0m: {rating:.2f}")
 
 
 
@@ -240,15 +240,13 @@ def new_merge(list1, list2):
 
 
 
-result = rank_players_by_categories(players, ["wild"], date=DATE)
-result
 
 # MAE 2.12 2.16?
 # graph_list = get_rank_graphs_for_list(players, x=5, date=DATE)
 # graph_list = get_rank_graphs_for_list_superfast(players, x=5, date=DATE)
 elo_list = rank_itr3(players[::-1], "I_DIFF_7", threshold=2240)
-other_list = [player for player, _ in sorted(result, key=lambda x: x[1], reverse=True)] 
-#
+other_list = graph_list 
+
 # mae = np.mean(np.abs([i - graph_list.index(p) for i, p in enumerate(players)]))
 mae2 = np.mean(np.abs([i - elo_list.index(p) for i, p in enumerate(players)]))
 mae3 = np.mean(np.abs([i - other_list.index(p) for i, p in enumerate(players)]))
