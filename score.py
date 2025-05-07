@@ -1,9 +1,294 @@
-import last_scores
 from scipy.stats import linregress
 import numpy as np
-import score_evaluater
 from collections import defaultdict
+from datetime import datetime, timedelta
+import sqlite3
 
+
+EXTRA_EP = """https://api.smx.573.no/extra/{}"""
+
+def player_exists(gamer_name):
+    con = sqlite3.connect("new_data.db")
+    cur = con.cursor()
+
+    dogfetus = cur.execute("""
+        SELECT _id
+        FROM gamers
+        WHERE username LIKE ?
+    """, (gamer_name,)).fetchone()
+
+    con.close()
+
+    return dogfetus
+
+
+def number_of_charts_per_difficulty(difficulty, display):
+    con = sqlite3.connect("new_data.db")
+    cur = con.cursor()
+
+    dogfetus = cur.execute("""
+        SELECT COUNT(charts._id)
+        FROM charts
+        WHERE difficulty = ?
+        AND difficulty_display LIKE ?
+    """, (difficulty, display)).fetchone()
+
+    con.close()
+
+    return dogfetus[0]
+
+
+def get_average_score_for_chart(chart_id):
+    con = sqlite3.connect("new_data.db")
+    cur = con.cursor()
+
+    dogfetus = cur.execute("""
+        SELECT AVG(score)
+        FROM scores
+        WHERE chart_id = ?
+    """, (chart_id,)).fetchone()
+
+    con.close()
+
+    return dogfetus[0]
+
+
+
+def get_average_score_for_difficulty(difficulty, display = None, name = None):
+    conn = sqlite3.connect("new_data.db")
+    cursor = conn.cursor()
+
+
+    if display:
+        query = """
+            SELECT AVG(scores.score)
+            FROM scores
+            JOIN charts ON scores.chart_id = charts._id
+            WHERE charts.difficulty = ? AND charts.difficulty_display LIKE ?;
+        """
+        cursor.execute(query, (difficulty, display))
+        
+    elif name:
+        query = """
+            SELECT AVG(scores.score)
+            FROM scores
+            JOIN charts ON scores.chart_id = charts._id
+            WHERE charts.difficulty = ? AND charts.difficulty_name LIKE ?;
+        """
+        cursor.execute(query, (difficulty, name))
+
+    else:
+        query = """
+            SELECT AVG(scores.score)
+            FROM scores
+            JOIN charts ON scores.chart_id = charts._id
+            WHERE charts.difficulty = ?;
+        """
+        cursor.execute(query, (difficulty,))
+
+    result = cursor.fetchone()
+
+    conn.close()
+
+    return result[0] if result and result[0] is not None else 0
+
+
+def difficulties_for_display(display, name = None):
+    conn = sqlite3.connect("new_data.db")
+    cursor = conn.cursor()
+
+    query = """
+        SELECT DISTINCT difficulty
+        FROM charts
+        WHERE difficulty_display LIKE ?;
+    """
+    cursor.execute(query, (display,))
+
+    if name:
+        query = """
+            SELECT DISTINCT difficulty
+            FROM charts
+            WHERE difficulty_name LIKE ?;
+        """
+        cursor.execute(query, (name,))
+
+    result = cursor.fetchall()
+
+    conn.close()
+    return sorted([x[0] for x in result])
+
+
+def get_difficulty_displays(singles = False):
+    conn = sqlite3.connect("new_data.db")
+    cursor = conn.cursor()
+
+    query = """
+        SELECT DISTINCT difficulty_display
+        FROM charts;
+    """
+
+    if singles:
+        query = """
+            SELECT DISTINCT difficulty_display
+            FROM charts
+            WHERE difficulty_display NOT in ('dual', 'dual+', 'full+', 'full', 'edit');
+        """
+
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    conn.close()
+
+    return sorted([x[0] for x in result])
+
+
+def get_difficulty_names(singles = False):
+    conn = sqlite3.connect("new_data.db")
+    cursor = conn.cursor()
+
+    query = """
+        SELECT DISTINCT difficulty_name
+        FROM charts;
+    """
+
+    if singles:
+        query = """
+            SELECT DISTINCT difficulty_name
+            FROM charts
+            WHERE difficulty_name NOT in ('dual', 'dual2', 'full', 'full2', 'edit');
+        """
+
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    conn.close()
+
+    return [x[0] for x in result]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+avg_display = []
+displays = get_difficulty_displays(singles=True)
+
+for display in displays:
+    avg_temp = {}
+
+    difficulties = difficulties_for_display(display)
+    for difficulty in difficulties:
+        avg_temp[difficulty] = get_average_score_for_difficulty(difficulty=difficulty, display=display)
+
+    avg_display.append({display: avg_temp})
+
+
+for item in avg_display:
+    for display, difficulties in item.items():
+        print(f"Display: {display}")
+        for difficulty, avg_score in difficulties.items():
+            print(f"  Difficulty: {difficulty}, Average Score: {avg_score}")
+        print("-" * 30)
+
+
+# get average score for difficulty and display
+def gasfdad(difficulty, display):
+    for item in avg_display:
+        if display in item:
+            difficulties = item[display]
+            return difficulties.get(difficulty, None)  
+    return None 
+
+
+def difference(your_score, avg_score):
+    return (your_score - avg_score)
+
+
+
+def value_of_score(score, difficulty, display):
+    average_score = gasfdad(difficulty, display)
+    if average_score is None or average_score == 0:
+        return 0  # or float('-inf') or some fallback
+
+    value = difference(score, average_score)
+
+    return value 
+
+
+# value_of_score(80999, 27, "wild")
+
+
+
+
+
+
+
+
+
+def last_scr_for_dif_and_dis(player, x, dif, dis, date, cleared=1, ignore_cleared=False):
+    conn = sqlite3.connect("new_data.db")
+    cursor = conn.cursor()
+
+    one_year_before = (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=365)).strftime("%Y-%m-%d")
+
+    query = """
+        SELECT scores.score, charts.difficulty, charts.difficulty_display
+        FROM scores
+        JOIN charts ON scores.chart_id = charts._id
+        JOIN gamers ON scores.gamer_id = gamers._id
+        WHERE gamers.username = ? COLLATE NOCASE
+        AND charts.difficulty = ?
+        AND charts.difficulty_display = ?
+        AND scores.created_at < ?
+    """
+
+    params = [player, dif, dis, date]
+
+    if not ignore_cleared:
+        query += " AND scores.cleared = ?"
+        params.append(cleared)
+
+    query += " ORDER BY scores.created_at DESC LIMIT ?"
+    params.append(x)
+
+    cursor.execute(query, params)
+    results = cursor.fetchall()
+
+    conn.close()
+    
+    return results
 
 players = [
     "JimboSMX",
@@ -267,27 +552,17 @@ def rank_players_by_categories(players, categories, get_rank_function, date="202
 grouped_ranks = []
 date_when_grouped = None
 
-def get_rank(player, dif = [], dis = ['hard', 'wild', 'hard+'], date="2026-10-10", grouped=False):
+def get_rank(player, x_scores=10, dif = [], dis = ['hard', 'wild', 'hard+'], date="2026-10-10"):
     global grouped_ranks, date_when_grouped
     dif_displayes = dis    
-    x_scores = 10
     scores = []
-
-    if grouped:
-        if not date_when_grouped or date_when_grouped != date:
-            _, groupd_player_and_ranks = rank_players_by_categories(players, dis, get_rank, date=date)
-            date_when_grouped = date
-            grouped_ranks = groupd_player_and_ranks
-
-        return next((rank for p, rank in grouped_ranks if p == player), None)
 
     # retrieve the last x scores for a player 
     for display in dif_displayes:
-
-        difficulties = score_evaluater.difficulties_for_display(display)
+        difficulties = difficulties_for_display(display)
         for difficulty in difficulties:
             print("display: ", display, " difficulty: ", difficulty, "score: ")
-            last = last_scores.last_scr_for_dif_and_dis(player, x_scores, difficulty, display, date) 
+            last = last_scr_for_dif_and_dis(player, x_scores, difficulty, display, date) 
             print(last)
             scores.append(last)
 
@@ -295,11 +570,11 @@ def get_rank(player, dif = [], dis = ['hard', 'wild', 'hard+'], date="2026-10-10
 
     # get the average of those scores per difficulty 
     difficulty_scores = defaultdict(lambda: {"total": 0, "count": 0})
-    for score in scores:
-        for single in score:
-            print("single: ", single)
+    for score_set in scores:
+        for score in score_set:
+            print("single: ", score)
             # Extract relevant fields
-            _, score_value, _, difficulty, display, _, _, _, _, _, _, _ = single
+            score_value, difficulty, display = score 
             key = (difficulty, display)  # Group by (difficulty, display)
 
             # Aggregate scores
@@ -307,7 +582,6 @@ def get_rank(player, dif = [], dis = ['hard', 'wild', 'hard+'], date="2026-10-10
             difficulty_scores[key]["count"] += 1
     avg_scores = {key: difficulty_scores[key]["total"] / difficulty_scores[key]["count"]
                 for key in difficulty_scores}
-
 
 
     # remove abnormailites (scores that are too low compared to the one above and below)
@@ -319,15 +593,13 @@ def get_rank(player, dif = [], dis = ['hard', 'wild', 'hard+'], date="2026-10-10
     flagged_set = {(d, s) for (d, s, _) in flagged_scores}
 
 
-
-
     # calculate the value of the average score
     values = []
     for (difficulty, display), avg in avg_scores.items():
         print(f"Difficulty: {difficulty}, Display: {display}, Average Score: {avg:.2f}")
         is_flagged = (difficulty, avg) in flagged_set
         if not is_flagged:
-            values.append(score_evaluater.value_of_score(avg, difficulty, display))
+            values.append(value_of_score(avg, difficulty, display))
 
 
 
@@ -336,6 +608,81 @@ def get_rank(player, dif = [], dis = ['hard', 'wild', 'hard+'], date="2026-10-10
 
 
 
+# player=""
+# x_scores = 10
+# date = "2024-10-17"
+# dis = ['wild']
+# dif_displayes = dis    
+# scores = []
+#
+#
+#
+#
+# # retrieve the last x scores for a player 
+# for display in dif_displayes:
+#     difficulties = difficulties_for_display(display)
+#     for difficulty in difficulties:
+#         print("display: ", display, " difficulty: ", difficulty, "score: ")
+#         last = last_scr_for_dif_and_dis(player, x_scores, difficulty, display, date) 
+#         print(last)
+#         scores.append(last)
+#
+#
+#
+#
+# # get the average of those scores per difficulty 
+# difficulty_scores = defaultdict(lambda: {"total": 0, "count": 0})
+# for score_set in scores:
+#     for score in score_set:
+#         print("single: ", score)
+#         # Extract relevant fields
+#         score_value, difficulty, display = score 
+#         key = (difficulty, display)  # Group by (difficulty, display)
+#
+#         # Aggregate scores
+#         difficulty_scores[key]["total"] += score_value
+#         difficulty_scores[key]["count"] += 1
+# avg_scores = {key: difficulty_scores[key]["total"] / difficulty_scores[key]["count"]
+#             for key in difficulty_scores}
+#
+#
+#
+#
+# # remove abnormailites (scores that are too low compared to the one above and below)
+# ok = []
+# for (difficulty, display), avg in avg_scores.items():
+#     ok.append((difficulty, avg))
+# flagged_scores = detect_abnormal_scores(ok)
+# print("Flagged scores: ", flagged_scores)
+# flagged_set = {(d, s) for (d, s, _) in flagged_scores}
+#
+#
+#
+#
+#
+# # Safe version for direct integration into existing code
+# try:
+#     # Try the efficient approach first
+#     max_item = max(avg_scores.items(), key=lambda item: item[1])
+#     highest_score = max_item[1]
+#     highest_score_difficulty, highest_score_display = max_item[0]
+# except ValueError:
+#     # Handle the case where avg_scores is empty
+#     highest_score = 0
+#     highest_score_difficulty = 27 
+#
+# # calculate the value of the average score
+# values = []
+# # print the average score for each difficulty and display
+# for (difficulty, display), avg in avg_scores.items():
+#     print(f"Difficulty: {difficulty}, Display: {display}, Average Score: {avg:.2f}")
+#     is_flagged = (difficulty, avg) in flagged_set and difficulty < highest_score_difficulty 
+#     if not is_flagged:
+#         values.append(value_of_score(avg, difficulty, display))
+#
+#
+# # return the average value of the scores
+# sum(values) / (len(values) or 1)
 
 
 
