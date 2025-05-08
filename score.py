@@ -357,7 +357,7 @@ players = [
 
 
 
-
+#
 def detect_abnormal_scores(player_scores):
     """
     Detects abnormally low scores for a player using adaptive anomaly detection.
@@ -371,23 +371,23 @@ def detect_abnormal_scores(player_scores):
         return []
 
     num_scores = len(player_scores)
-    
+
     # Pre-compute arrays once - avoid repeated list comprehensions
     difficulties, scores = zip(*player_scores)
     difficulties = np.array(difficulties)
     scores = np.array(scores)
-    
+
     # Adaptive parameters - calculate once outside the loop
     percentile_threshold = max(1, 10 - (num_scores * 0.05))
     deviation_factor = max(0.05, 0.2 - (num_scores * 0.001))
     std_multiplier = min(2.5, 1.5 + (num_scores * 0.005))
-    
+
     # Calculate statistics once
     median_score = np.median(scores)
     mean_score = np.mean(scores)
     std_dev = np.std(scores)
     percentile_cutoff = np.percentile(scores, percentile_threshold)
-    
+
     # Optimization: Use vectorized operations with numpy
     # Only compute linear regression if we have enough data points
     if len(scores) > 2:
@@ -398,62 +398,202 @@ def detect_abnormal_scores(player_scores):
     else:
         # If not enough data, use median as expected score
         expected_scores = np.full_like(difficulties, median_score, dtype=float)
-    
+
     # Calculate std_dev_cutoff once
     std_dev_cutoff = median_score - (std_multiplier * std_dev)
-    
+
     # Compute z-scores for all at once
     z_scores = np.zeros_like(scores, dtype=float)
     if std_dev > 0:
         z_scores = (scores - mean_score) / std_dev
-    
+
     # Create arrays for each check
     below_percentile = scores < percentile_cutoff
     below_std_dev = scores < std_dev_cutoff
     below_z_score = np.abs(z_scores) > 2.5
-    
+
     # Calculate dynamic deviation thresholds
     dynamic_thresholds = np.maximum(5000, expected_scores * deviation_factor)
     below_expected = (expected_scores - scores) > dynamic_thresholds
-    
+
     # Count conditions that are met for each score
     condition_counts = below_percentile.astype(int) + below_expected.astype(int) + \
                       below_std_dev.astype(int) + below_z_score.astype(int)
-    
+
     # Find indices where at least 2 conditions are met
     flagged_indices = np.where(condition_counts >= 2)[0]
-    
+
     # Create the result list
     flagged_scores = [(difficulties[i], scores[i], expected_scores[i]) 
                       for i in flagged_indices]
-    
+
     return flagged_scores
 
 
-# Example usage
-player_scores = [
-    (10, 100000), (12, 98000), (11, 97000), (9, 96000), (8, 90000),
-    (10, 100000), (12, 98000), (11, 97000), (9, 96000), (8, 90000),
-    (10, 100000), (12, 98000), (11, 97000), (9, 96000), (8, 90000),
-    (7, 77000), (6, 49000)  # Last one should be flagged, 89k should not
+
+
+
+
+
+
+
+
+
+
+
+
+
+def detect_abnormal_scores2(player_scores):
+    """
+    Detects low outlier scores using only percentile-based thresholding.
+
+    :param player_scores: List of (chart_difficulty, score) tuples for a player.
+    :return: List of (difficulty, score) tuples flagged as abnormally low.
+    """
+    if not player_scores or len(player_scores) < 2:
+        return []
+
+    difficulties, scores = zip(*player_scores)
+    scores = np.array(scores)
+    difficulties = np.array(difficulties)
+
+    percentile_threshold = max(1, 10 - 0.05 * len(scores))  # adaptive
+    print("percentile_threshold: ", percentile_threshold)
+    cutoff = np.percentile(scores, percentile_threshold)
+    print("cutoff: ", cutoff)
+
+    # Flag scores below the cutoff
+    flagged_indices = np.where(scores < cutoff)[0]
+
+    # Return list of (difficulty, score) tuples
+    return [(difficulties[i], scores[i], "b") for i in flagged_indices]
+
+
+def detect_abnormal_scores3(player_scores):
+    """
+    Detects low outlier scores using a more robust method that identifies clusters of low scores.
+    
+    :param player_scores: List of (chart_difficulty, score) tuples for a player.
+    :return: List of (difficulty, score, reason) tuples flagged as abnormally low.
+    """
+    if not player_scores or len(player_scores) < 3:  # Need at least 3 points to detect outliers
+        return []
+    
+    # Extract difficulties and scores
+    difficulties, scores = zip(*player_scores)
+    difficulties = np.array(difficulties)
+    scores = np.array(scores)
+    
+    # Method 1: Use IQR (Interquartile Range) to detect outliers
+    # This is a standard statistical method for outlier detection
+    q1 = np.percentile(scores, 25)
+    q3 = np.percentile(scores, 75)
+    iqr = q3 - q1
+    
+    # Define lower bound - anything below this is considered an outlier
+    # The 1.5 multiplier is a common threshold in statistics
+    lower_bound = q1 - 1.5 * iqr
+    
+    # Method 2: Look for large gaps in sorted scores that might indicate outliers
+    sorted_indices = np.argsort(scores)
+    sorted_scores = scores[sorted_indices]
+    
+    # Calculate differences between adjacent scores
+    score_diffs = np.diff(sorted_scores)
+    
+    # Find large gaps (e.g., where the difference is more than X% of the mean score)
+    mean_score = np.mean(scores)
+    large_gap_threshold = 0.3 * mean_score  # 30% of the mean score is a significant gap
+    
+    large_gap_indices = np.where(score_diffs > large_gap_threshold)[0]
+    
+    # If we find large gaps, anything below the lowest large gap is an outlier
+    gap_flagged = set()
+    if len(large_gap_indices) > 0:
+        lowest_good_score_index = sorted_indices[large_gap_indices[0] + 1]
+        lowest_good_score = scores[lowest_good_score_index]
+        
+        # Flag all scores below this threshold
+        for i, score in enumerate(scores):
+            if score < lowest_good_score:
+                gap_flagged.add(i)
+    
+    # Combine both methods
+    # Flag scores that are either below the IQR lower bound or below a large gap
+    flagged_indices = set(np.where(scores < lower_bound)[0]) | gap_flagged
+    
+    # Return the results as tuples with a reason code
+    result = []
+    for i in flagged_indices:
+        if i in np.where(scores < lower_bound)[0] and i in gap_flagged:
+            reason = "both"  # Flagged by both methods
+        elif i in np.where(scores < lower_bound)[0]:
+            reason = "iqr"   # Flagged by IQR method
+        else:
+            reason = "gap"   # Flagged by gap method
+        
+        result.append((difficulties[i], scores[i], reason))
+    
+    return result
+
+
+def detect_abnormal_scores4(player_scores):
+    """
+    Detects low outlier scores using the IQR (Interquartile Range) method.
+    
+    :param player_scores: List of (chart_difficulty, score) tuples for a player.
+    :return: List of (difficulty, score, reason) tuples flagged as abnormally low.
+    """
+    if not player_scores or len(player_scores) < 3:  # Need enough points for quartiles
+        return []
+    
+    # Extract difficulties and scores
+    difficulties, scores = zip(*player_scores)
+    difficulties = np.array(difficulties)
+    scores = np.array(scores)
+    
+    # Calculate the first quartile (25th percentile)
+    q1 = np.percentile(scores, 22)
+    
+    # Calculate the third quartile (75th percentile)
+    q3 = np.percentile(scores, 75)
+    
+    # Calculate the IQR
+    iqr = q3 - q1
+    
+    # Define the lower bound - standard practice is 1.5 * IQR below Q1
+    # You can adjust the multiplier (1.5) to make it more or less strict
+    lower_bound = q1 - 0.5 * iqr
+    print("lower_bound: ", lower_bound)
+    
+    # Find all scores below the lower bound
+    flagged_indices = np.where(scores < lower_bound)[0]
+    
+    # Return the results
+    return [(difficulties[i], scores[i], "iqr") for i in flagged_indices]
+
+# Test with the example
+test_scores = [
+    (1, 76000),
+    (2, 98000),
+    (3, 37000),
+    (4, 40000),
+    (5, 99000),
+    (6, 97000),
+    (7, 99000),
+    (8, 99000),
+    (9, 99000),
+    (10, 99000),
+    (10, 99000),
+    (10, 99000),
+    (10, 99000),
+    (10, 99000),
+    (10, 99000),
+    (10, 99000),
+    (10, 99000),
 ]
 
-abnormal_scores = detect_abnormal_scores(player_scores)
-
-print("Abnormal scores:", abnormal_scores)
-
-
-
-
-
-
-
-
-
-
-
-
-
+print("Abnormal Scores:", detect_abnormal_scores2(test_scores))
 
 
 
@@ -588,7 +728,7 @@ def get_rank(player, x_scores=10, dif = [], dis = ['hard', 'wild', 'hard+'], dat
     ok = []
     for (difficulty, display), avg in avg_scores.items():
         ok.append((difficulty, avg))
-    flagged_scores = detect_abnormal_scores(ok)
+    flagged_scores = detect_abnormal_scores2(ok)
     print("Flagged scores: ", flagged_scores)
     flagged_set = {(d, s) for (d, s, _) in flagged_scores}
 

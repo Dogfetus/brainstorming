@@ -636,26 +636,26 @@ def new_merge(list1, list2):
 #
 #
 #
-# #graph and such
-# player_ranks = []
-#
-#  # only first half of players
-# for player in players:
-#     rank = get_rank(player, x_scores=3, dis=["wild"], date=DATE)
-#     # rank = get_rank_graph_bulk(player, x=5, date=DATE)
-#     # rank = rank_by_avg(player, date=DATE)
-#     print(f"\033[1;36m{player} : \t\033[1;33m{rank}\033[0m")
-#     player_ranks.append((player, rank))
-#
-# groupd_player_ranks = sorted(player_ranks, key=lambda x: x[1], reverse=True) 
-# graph_list = [group[0] for group in groupd_player_ranks]
-#
-# mae = np.mean(np.abs([i - graph_list.index(p) for i, p in enumerate(players)]))
-# print(f"Mean Absolute Error: {mae:.2f}")
-#
-# for rank, (player, rating) in enumerate(groupd_player_ranks, start=1):
-#     print(f"\033[1;36m{rank:2}.\033[0m \033[1;33m{player:15}\033[0m: {rating:.2f}")
-#
+#graph and such
+player_ranks = []
+
+ # only first half of players
+for player in players:
+    rank = get_rank(player, x_scores=3, dis=["wild"], date=DATE)
+    # rank = get_rank_graph_bulk(player, x=5, date=DATE)
+    # rank = rank_by_avg(player, date=DATE)
+    print(f"\033[1;36m{player} : \t\033[1;33m{rank}\033[0m")
+    player_ranks.append((player, rank))
+
+groupd_player_ranks = sorted(player_ranks, key=lambda x: x[1], reverse=True) 
+graph_list = [group[0] for group in groupd_player_ranks]
+
+mae = np.mean(np.abs([i - graph_list.index(p) for i, p in enumerate(players)]))
+print(f"Mean Absolute Error: {mae:.2f}")
+
+for rank, (player, rating) in enumerate(groupd_player_ranks, start=1):
+    print(f"\033[1;36m{rank:2}.\033[0m \033[1;33m{player:15}\033[0m: {rating:.2f}")
+
 #
 
 
@@ -670,22 +670,22 @@ def new_merge(list1, list2):
 
 # MAE 2.12 2.16?
 # graph_list = get_rank_graphs_for_list(players, x=5, date=DATE)
-# # graph_list = get_rank_graphs_for_list_superfast(players, x=5, date=DATE)
-# elo_list = rank_itr3(players[::-1], "I_DIFF_7", threshold=2240)
-# other_list = graph_list 
-# # elo_list = itr3
-# # other_list = itr3
-#
-#  # mae = np.mean(np.abs([i - graph_list.index(p) for i, p in enumerate(players)]))
-# mae2 = np.mean(np.abs([i - elo_list.index(p) for i, p in enumerate(players)]))
-# mae3 = np.mean(np.abs([i - other_list.index(p) for i, p in enumerate(players)]))
-#  #
-#  # rank_dict_2 = {player: i+1 for i, player in enumerate(graph_list)}
-# rank_dict_1 = {player: i+1 for i, player in enumerate(elo_list)}
-# rank_dict_3 = {player: i+1 for i, player in enumerate(other_list)}
-#  #
-# merged = merge_rankings_by_average(rank_dict_1, rank_dict_3)
-#
+# graph_list = get_rank_graphs_for_list_superfast(players, x=5, date=DATE)
+elo_list = rank_itr3(players[::-1], "I_DIFF_7", threshold=2240)
+other_list = graph_list 
+# elo_list = itr3
+# other_list = itr3
+
+ # mae = np.mean(np.abs([i - graph_list.index(p) for i, p in enumerate(players)]))
+mae2 = np.mean(np.abs([i - elo_list.index(p) for i, p in enumerate(players)]))
+mae3 = np.mean(np.abs([i - other_list.index(p) for i, p in enumerate(players)]))
+ #
+ # rank_dict_2 = {player: i+1 for i, player in enumerate(graph_list)}
+rank_dict_1 = {player: i+1 for i, player in enumerate(elo_list)}
+rank_dict_3 = {player: i+1 for i, player in enumerate(other_list)}
+ #
+merged = merge_rankings_by_average(rank_dict_1, rank_dict_3)
+
 #
 
 
@@ -741,14 +741,14 @@ def new_merge(list1, list2):
 # list2 = rank_itr3(players[::-1], difficulty_field="I_DIFF_5", threshold=16200, max_delta=3, k_factor=69, exponent=1.2)
 # list2 = rank_itr3(players[::-1], difficulty_field="I_DIFF_6", max_delta=8, threshold=1800, k_factor=20, exponent=1.2)
 
-# list2 = [m[0] for m in merged] 
+list2 = [m[0] for m in merged] 
 # list2 = rank_itr3(players[::-1], difficulty_field="I_DIFF_7", threshold=2240)
 # list2 = itr1
 # list2 = itr2
 # list2 = itr3
 # list2 = itr4
 # list2 = itr5
-list2 = itr6
+# list2 = itr6
 
 
 # list2 = get_rank_graphs_for_list(players, x=14, date=DATE)
